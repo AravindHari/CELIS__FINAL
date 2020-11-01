@@ -221,7 +221,7 @@ def register():
         return redirect(url_for('index'))
     form=forms.RegisterForm()
     if form.validate_on_submit():
-        user=Uer(username=form.username.data,email=form.email.data,user_role=form.user_role.data,Region=form.Region.data)
+        user=User(username=form.username.data,email=form.email.data,user_role=form.user_role.data,Region=form.Region.data)
         user.set_password(form.password.data)
         db.session.add(user)
         db.session.commit()
