@@ -9,12 +9,23 @@ from wtforms.validators import ValidationError
 from datetime import datetime
 import pickle
 from flask_mail import Message
+from threading import Thread
 
 
 @app.route('/')
 @app.route('/index')
 def index():
     return render_template('celis.html',title='Home',data_footer_aos="fade-left",data_aos_footer_delay=100,data_aos_header="fade-left",data_header_aos_delay=100)
+
+@app.errorhandler(404)
+def not_found_error(error):
+    return render_template('error404.html'), 404
+
+@app.errorhandler(500)
+def internal_error(error):
+    db.session.rollback()
+    return render_template('error500.html'), 500
+
 
 @app.route('/course/<course_code>/students')
 @login_required
@@ -69,19 +80,19 @@ def mailform():
     last_name=request.form.get("last_name")
     tel=request.form.get("tel")
     email=request.form.get("email")
-
+    body_to_admins=request.form.get('feedback')
     message= "Thanks for contacting CELIS. We will reach out to you soon!"
     #server=smtplib.SMTP("smpt.gmail.com",465)
     #server.starttls()
-    #server.login("celis.students@gmail.com","Celis123@")
-    #server.sendmail("celis.students@gmail.com",email,message)
-    msg = Message('Welcome to CELIS',
+    msg = Message('Your Issue/Request has been notified',
                   sender="celis.students@gmail.com",
                   recipients=[email])
-    msg.body = f'''Thankyou for contacting Celis. We will reach out to you soon!!
+    msg_admins=Message('Issue/Feedback/Request from'+email,sender="celis.students@gmail.com",recipients=['narayanadithya1234@gmail.com','aravindharinarayanan111@gmail.com'])
+    msg.body = f'''Your recent feedback/issue/request has been sent to our admins. Actions will be taken soon.
 '''
-    mail.send(msg)
-
+    msg_admins.body="Hey you have a message from user {} {}".format(current_user.username,body_to_admins)
+    Thread(target=send_async_email,args=(app,msg)).start()
+    Thread(target=send_async_email,args=(app,msg_admins)).start()
     return redirect(url_for('index'))
     
 
@@ -100,6 +111,9 @@ def add_course():
     else:
         return redirect(url_for('profile',username=current_user.username))
 
+def send_async_email(app,msg):
+    with app.app_context():
+        mail.send(msg)
 
 
 @app.route('/courses')
@@ -207,11 +221,16 @@ def register():
         return redirect(url_for('index'))
     form=forms.RegisterForm()
     if form.validate_on_submit():
-        user=User(username=form.username.data,email=form.email.data,user_role=form.user_role.data,Region=form.Region.data)
+        user=Uer(username=form.username.data,email=form.email.data,user_role=form.user_role.data,Region=form.Region.data)
         user.set_password(form.password.data)
         db.session.add(user)
         db.session.commit()
         flash('Successfully Registered',category="success")
+        msg = Message('Welcome to CELIS',
+                  sender="celis.students@gmail.com",
+                  recipients=[user.email])
+        msg.body="Hey There, We are happy that you have decided to join our community, We look forward to working with you. If you have any issues do notify us in our contact us section"
+        Thread(target=send_async_email,args=(app,msg)).start()
         print(form.password.data)
         print(form.user_role.data)
         print(form.Region.data)
